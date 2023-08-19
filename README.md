@@ -1,1 +1,1 @@
-# testing-gha
+# Test GitHub Actions
