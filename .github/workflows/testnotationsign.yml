@@ -6,7 +6,7 @@ on:
 env:
   ACR_TO_RELEASE: wabbitregistry.azurecr.io
   ACR_REPO_TO_RELEASE: integration
-  ACR_USERNAME: wabbitregistry
+  ACR_USERNAME: 00000000-0000-0000-0000-000000000000
   AKV_NAME: wabbitakv
   KEY_ID: https://wabbitakv.vault.azure.net/keys/wabbit-networks-io-1/18076e184eb8493b9bb0c804da8ddf25
   NOTATION_EXPERIMENTAL: 1
