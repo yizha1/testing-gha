@@ -1,1 +1,70 @@
+name: test-notation-action
 
+on:
+  push:
+
+env:
+  ACR_TO_RELEASE: wabbitregistry.azurecr.io
+  ACR_REPO_TO_RELEASE: integration
+  ACR_USERNAME: 00000000-0000-0000-0000-000000000000
+  AKV_NAME: wabbitakv
+  KEY_ID: https://wabbitakv.vault.azure.net/keys/wabbit-networks-io-1/18076e184eb8493b9bb0c804da8ddf25
+  NOTATION_EXPERIMENTAL: 1
+
+jobs:
+  # build and push the release, setup notation, sign the artifact, and 
+  # verify the signature
+  notation-setup-sign-verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: prepare
+        id: prepare
+        run: |
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          echo "target_artifact_reference=${{ env.ACR_TO_RELEASE }}/${{ env.ACR_REPO_TO_RELEASE }}:${BRANCH_NAME}" >> "$GITHUB_ENV"
+      - name: docker login
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.ACR_TO_RELEASE }}
+          username: ${{ env.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: ${{ env.target_artifact_reference }}
+      - name: Retrieve digest
+        run: |
+          echo "target_artifact_reference=${{ env.ACR_TO_RELEASE }}/${{ env.ACR_REPO_TO_RELEASE }}@${{ steps.push.outputs.digest }}" >> "$GITHUB_ENV"
+      - name: Azure login
+        uses: Azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          allow-no-subscriptions: true
+      - name: setup notation
+        uses: Two-Hearts/notation-action/setup@version
+      - name: sign released artifact using key pair from AKV
+        uses: Two-Hearts/notation-action/sign@version
+        with:
+          plugin_name: azure-kv
+          plugin_url: https://github.com/Azure/notation-azure-kv/releases/download/v1.0.0/notation-azure-kv_1.0.0_linux_amd64.tar.gz
+          plugin_checksum: 82d4fee34dfe5e9303e4340d8d7f651da0a89fa8ae03195558f83bb6fa8dd263
+          key_id: ${{ env.KEY_ID }}
+          target_artifact_reference: ${{ env.target_artifact_reference }}
+          signature_format: cose
+          plugin_config: |-
+            self_signed=true
+          allow_referrers_api: 'true'
+      - name: verify released artifact
+        uses: Two-Hearts/notation-action/verify@version
+        with:
+          target_artifact_reference: ${{ env.target_artifact_reference }}
+          trust_policy: .github/trustpolicy/trustpolicy.json
+          trust_store: .github/truststore
+          allow_referrers_api: 'true'
